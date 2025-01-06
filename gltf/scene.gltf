@@ -5029,10 +5029,10 @@
   ],
   "images": [
     {
-      "uri": "textures/pasokon_baseColor.png"
+      "uri": "./gltf/textures/pasokon_baseColor.png"
     },
     {
-      "uri": "textures/terrarium1_baseColor.png"
+      "uri": "./gltf/textures/terrarium1_baseColor.png"
     }
   ],
   "materials": [
