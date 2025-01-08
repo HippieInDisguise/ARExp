@@ -101,20 +101,11 @@ function startExperience(media) {
                         }
                     });
 
+                    const SMOOTHING_FACTOR = 0.9;
                     onFrame(() => {
                         ctx.clearRect(0, 0, $canvas.width, $canvas.height);
                         if (!document.hidden) {
-                            ctx.drawImage(
-                                $video,
-                                0,
-                                0,
-                                $video.videoWidth,
-                                $video.videoHeight,
-                                size.x,
-                                size.y,
-                                size.width,
-                                size.height
-                            );
+                            ctx.drawImage($video, 0, 0, $video.videoWidth, $video.videoHeight, size.x, size.y, size.width, size.height);
                             const frame = ctx.getImageData(0, 0, $canvas.width, $canvas.height);
                             const pose = alva.findCameraPose(frame);
 
@@ -123,12 +114,36 @@ function startExperience(media) {
                                 camera.matrix.fromArray(pose);
                                 camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);
 
-                                if (model) {
-                                    // If anchored, use anchorPose; otherwise hide or keep it invisible
-                                    if (anchored && anchorPose) {
-                                        model.matrix.fromArray(anchorPose);
-                                        model.matrix.decompose(model.position, model.quaternion, model.scale);
-                                    }
+                                if (anchored && anchorPose && model) {
+                                    // Smooth the anchorPose to reduce jitter
+                                    const anchorMatrix = new THREE.Matrix4().fromArray(anchorPose);
+                                    const anchorPos = new THREE.Vector3();
+                                    const anchorQuat = new THREE.Quaternion();
+                                    const anchorSc = new THREE.Vector3();
+                                    anchorMatrix.decompose(anchorPos, anchorQuat, anchorSc);
+
+                                    const newMatrix = new THREE.Matrix4().fromArray(pose);
+                                    const newPos = new THREE.Vector3();
+                                    const newQuat = new THREE.Quaternion();
+                                    const newSc = new THREE.Vector3();
+                                    newMatrix.decompose(newPos, newQuat, newSc);
+
+                                    // Simple lerp for position and slerp for quaternion
+                                    anchorPos.lerp(newPos, 1 - SMOOTHING_FACTOR);
+                                    anchorQuat.slerp(newQuat, 1 - SMOOTHING_FACTOR);
+
+                                    // Adjust model scale based on distance
+                                    const dist = camera.position.distanceTo(anchorPos);
+                                    const dynamicScale = 0.2 + dist * 0.05;
+
+                                    // Recompose matrix and store as new anchorPose
+                                    anchorMatrix.compose(anchorPos, anchorQuat, new THREE.Vector3(1, 1, 1));
+                                    anchorPose = anchorMatrix.toArray();
+
+                                    // Apply final transform to model
+                                    model.matrix.fromArray(anchorPose);
+                                    model.matrix.decompose(model.position, model.quaternion, model.scale);
+                                    model.scale.set(dynamicScale, dynamicScale, dynamicScale);
                                 }
                             } else {
                                 view.lostCamera();
@@ -149,7 +164,7 @@ function startExperience(media) {
 
     console.log('AR experience started');
 }
-// Start everything once the page has loaded
+
 window.addEventListener('load', () => {
     initializeUI();
     setTimeout(() => {
